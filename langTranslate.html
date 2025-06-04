@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>語音輸入、Gemini 翻譯、日語播放</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 700px;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 25px;
+            text-align: center;
+            font-size: 2em;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: bold;
+        }
+        input[type="text"],
+        textarea {
+            width: calc(100% - 20px);
+            padding: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 1em;
+            box-sizing: border-box;
+        }
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        button {
+            padding: 12px 25px;
+            font-size: 1.1em;
+            color: white;
+            background-color: #007bff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            margin-right: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0, 123, 255, 0.2);
+        }
+        button:hover {
+            background-color: #0056b3;
+            transform: translateY(-2px);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        #outputSection {
+            margin-top: 25px;
+            border-top: 1px solid #eee;
+            padding-top: 25px;
+        }
+        #outputSection h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+            text-align: center;
+        }
+        #translationResult {
+            font-size: 1.2em;
+            color: #444;
+            background-color: #e9f0f9;
+            padding: 15px;
+            border-radius: 8px;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            word-break: break-word; /* 允許長單詞換行 */
+        }
+        .status-message {
+            margin-top: 15px;
+            color: #d6330b;
+            font-weight: bold;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>語音輸入與日語翻譯</h1>
+
+        <label for="geminiApiKey">Gemini API Key (請注意安全風險！)</label>
+        <input type="text" id="geminiApiKey" placeholder="在此輸入您的 Gemini API Key">
+
+        <label for="spokenContent">口說內容</label>
+        <textarea id="spokenContent" placeholder="點擊麥克風按鈕開始說話..."></textarea>
+
+        <button id="startButton">🎤 開始口說輸入</button>
+        <button id="stopButton" disabled>⏸ 停止口說輸入</button>
+        <button id="translateButton">🌐 翻譯成日語</button>
+
+        <div class="status-message" id="statusMessage"></div>
+
+        <div id="outputSection" style="display: none;">
+            <h2>日語翻譯結果</h2>
+            <div id="translationResult">等待翻譯...</div>
+            <button id="playJapaneseButton" style="margin-top: 20px;">🔊 播放日語</button>
+        </div>
+    </div>
+
+    <script>
+        const geminiApiKeyInput = document.getElementById('geminiApiKey');
+        const spokenContentTextarea = document.getElementById('spokenContent');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const translateButton = document.getElementById('translateButton');
+        const playJapaneseButton = document.getElementById('playJapaneseButton');
+        const translationResultDiv = document.getElementById('translationResult');
+        const outputSection = document.getElementById('outputSection');
+        const statusMessageDiv = document.getElementById('statusMessage');
+
+        let recognition; // Web Speech Recognition object
+        let isSpeaking = false; // Flag to track if speech recognition is active
+
+        // --- 語音輸入 (Web Speech API) ---
+        if ('webkitSpeechRecognition' in window) {
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = false; // 只錄製一句話
+            recognition.interimResults = false; // 只返回最終結果
+            recognition.lang = 'zh-TW'; // 設定為繁體中文
+
+            recognition.onstart = () => {
+                isSpeaking = true;
+                startButton.disabled = true;
+                stopButton.disabled = false;
+                statusMessageDiv.textContent = '請說話...';
+                spokenContentTextarea.value = ''; // 清空舊內容
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                spokenContentTextarea.value = transcript;
+                statusMessageDiv.textContent = '口說輸入完成。';
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                statusMessageDiv.textContent = `口說輸入錯誤: ${event.error}`;
+                isSpeaking = false;
+                startButton.disabled = false;
+                stopButton.disabled = true;
+            };
+
+            recognition.onend = () => {
+                isSpeaking = false;
+                startButton.disabled = false;
+                stopButton.disabled = true;
+                if (!spokenContentTextarea.value) {
+                     statusMessageDiv.textContent = '沒有檢測到語音輸入。';
+                }
+            };
+        } else {
+            startButton.disabled = true;
+            stopButton.disabled = true;
+            statusMessageDiv.textContent = '您的瀏覽器不支持語音輸入。請使用 Google Chrome。';
+        }
+
+        startButton.addEventListener('click', () => {
+            if (recognition && !isSpeaking) {
+                recognition.start();
+            }
+        });
+
+        stopButton.addEventListener('click', () => {
+            if (recognition && isSpeaking) {
+                recognition.stop();
+            }
+        });
+
+        // --- 翻譯 (Gemini REST API) ---
+        translateButton.addEventListener('click', async () => {
+            const apiKey = geminiApiKeyInput.value.trim();
+            const textToTranslate = spokenContentTextarea.value.trim();
+
+            if (!apiKey) {
+                statusMessageDiv.textContent = '請輸入您的 Gemini API Key。';
+                return;
+            }
+            if (!textToTranslate) {
+                statusMessageDiv.textContent = '請先進行口說輸入。';
+                return;
+            }
+
+            statusMessageDiv.textContent = '正在翻譯中...';
+            translateButton.disabled = true;
+            playJapaneseButton.disabled = true;
+            translationResultDiv.textContent = '翻譯中...';
+            outputSection.style.display = 'none'; // 隱藏結果區塊直到翻譯完成
+
+            try {
+                // 將口說內容作為 Gemini 的 prompt 進行翻譯
+                const prompt = `將以下文字翻譯成日語，只返回日語翻譯結果，不要包含其他任何內容：\n\n"${textToTranslate}"`;
+
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                text: prompt
+                            }]
+                        }]
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error('Gemini API Error:', errorData);
+                    throw new Error(`Gemini API 錯誤: ${errorData.error.message || response.statusText}`);
+                }
+
+                const data = await response.json();
+                console.log('Gemini API Response:', data);
+
+                let translatedText = '';
+                if (data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0) {
+                    translatedText = data.candidates[0].content.parts[0].text.trim();
+                } else {
+                    throw new Error('Gemini API 返回了無效的翻譯結果。');
+                }
+
+                // 移除任何可能的 Markdown 格式，例如 `**` 或 `*`
+                translatedText = translatedText.replace(/\*\*|\*/g, '').trim();
+
+                translationResultDiv.textContent = translatedText;
+                outputSection.style.display = 'block'; // 顯示結果區塊
+                statusMessageDiv.textContent = '翻譯成功！';
+                playJapaneseButton.disabled = false;
+
+            } catch (error) {
+                console.error('翻譯過程中發生錯誤:', error);
+                statusMessageDiv.textContent = `翻譯失敗: ${error.message}`;
+                translationResultDiv.textContent = '翻譯失敗。';
+            } finally {
+                translateButton.disabled = false;
+            }
+        });
+
+        // --- 日語播放 (Web Speech API) ---
+        playJapaneseButton.addEventListener('click', () => {
+            const textToSpeak = translationResultDiv.textContent.trim();
+
+            if (!textToSpeak || textToSpeak === '翻譯失敗。' || textToSpeak === '翻譯中...') {
+                statusMessageDiv.textContent = '沒有可播放的日語文本。';
+                return;
+            }
+
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(textToSpeak);
+                utterance.lang = 'ja-JP'; // 設定為日語
+
+                // 可選：嘗試選擇日語語音，但兼容性可能因瀏覽器而異
+                 window.speechSynthesis.onvoiceschanged = () => {
+                     const voices = window.speechSynthesis.getVoices();
+                     const japaneseVoice = voices.find(voice => voice.lang === 'ja-JP' || voice.name.includes('Japanese'));
+                     if (japaneseVoice) {
+                         utterance.voice = japaneseVoice;
+                     } else {
+                         console.warn('沒有找到日語語音，將使用默認語音。');
+                     }
+                 };
+
+                utterance.onerror = (event) => {
+                    console.error('語音播放錯誤:', event.error);
+                    statusMessageDiv.textContent = `語音播放錯誤: ${event.error}`;
+                };
+
+                utterance.onend = () => {
+                    statusMessageDiv.textContent = '日語播放完畢。';
+                };
+
+                window.speechSynthesis.speak(utterance);
+                statusMessageDiv.textContent = '正在播放日語...';
+            } else {
+                statusMessageDiv.textContent = '您的瀏覽器不支持語音播放。';
+            }
+        });
+
+        // 初始化狀態
+        document.addEventListener('DOMContentLoaded', () => {
+            outputSection.style.display = 'none';
+            playJapaneseButton.disabled = true;
+            statusMessageDiv.textContent = '請輸入 Gemini API Key 並點擊麥克風按鈕。';
+        });
+
+    </script>
+</body>
+</html>

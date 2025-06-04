@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini 影片內容翻譯 (Inline Data)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #e0f7fa;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .container {
+            background-color: #ffffff;
+            padding: 35px;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            text-align: center;
+            width: 100%;
+            max-width: 850px;
+            border: 1px solid #b2ebf2;
+        }
+
+        h1 {
+            color: #00796b;
+            margin-bottom: 35px;
+            font-size: 2.5em;
+            font-weight: 700;
+        }
+
+        .input-group {
+            margin-bottom: 30px;
+            text-align: left;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 12px;
+            font-weight: bold;
+            color: #4db6ac;
+            font-size: 1.2em;
+        }
+
+        .input-group input[type="password"] {
+            width: calc(100% - 24px);
+            padding: 14px;
+            border: 1px solid #80cbc4;
+            border-radius: 8px;
+            font-size: 1.1em;
+            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.08);
+        }
+
+        .input-group small {
+            display: block;
+            margin-top: 10px;
+            color: #d32f2f; /* 警告色 */
+            font-size: 0.95em;
+            font-weight: bold;
+        }
+
+        .upload-section {
+            margin-bottom: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .custom-file-upload {
+            border: 2px dashed #00bcd4;
+            padding: 16px 35px;
+            border-radius: 10px;
+            cursor: pointer;
+            background-color: #e0f7fa;
+            color: #00838f;
+            font-weight: bold;
+            transition: background-color 0.3s ease, border-color 0.3s ease, transform 0.2s ease;
+            font-size: 1.2em;
+        }
+
+        .custom-file-upload:hover {
+            background-color: #b2ebf2;
+            border-color: #006064;
+            transform: translateY(-3px);
+        }
+
+        #fileName {
+            font-style: italic;
+            color: #757575;
+            margin-top: 8px;
+            font-size: 1.1em;
+        }
+
+        button {
+            background-color: #26a69a;
+            color: white;
+            padding: 16px 35px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1.25em;
+            font-weight: bold;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #00897b;
+            transform: translateY(-3px);
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        #loading, #resultSection, #errorSection {
+            margin-top: 30px;
+            padding: 30px;
+            border-radius: 12px;
+            text-align: left;
+            transition: all 0.4s ease-in-out;
+        }
+
+        #loading {
+            background-color: #fff9c4;
+            color: #827717;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 18px;
+            border: 1px solid #ffee58;
+        }
+
+        .spinner {
+            border: 5px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #00bcd4;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        #resultSection {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #81c784;
+        }
+
+        #translationResult {
+            width: calc(100% - 28px);
+            height: 300px;
+            padding: 14px;
+            border: 1px solid #a5d6a7;
+            border-radius: 8px;
+            font-size: 1.15em;
+            resize: vertical;
+            box-sizing: border-box;
+            background-color: #fcfdfc;
+            color: #333;
+            line-height: 1.7;
+        }
+
+        #errorSection {
+            background-color: #ffebee;
+            color: #c62828;
+            border: 1px solid #ef9a9a;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gemini 影片內容翻譯</h1>
+
+        <div class="input-group">
+            <label for="geminiApiKey">Gemini API Key:</label>
+            <input type="password" id="geminiApiKey" placeholder="請輸入您的 Gemini API 金鑰" required>
+            <small>
+                <strong style="color: red;">警告：</strong> 直接在前端使用 API 金鑰存在安全風險！請僅用於測試目的。
+                實際應用應透過後端伺服器代理請求。
+            </small>
+        </div>
+
+        <div class="upload-section">
+            <label for="videoFile" class="custom-file-upload">
+                選擇影片檔案
+            </label>
+            <input type="file" id="videoFile" accept="video/*">
+            <span id="fileName">尚未選擇檔案</span>
+            <button id="translateBtn" disabled>上傳並翻譯影片</button>
+        </div>
+
+        <div id="loading" class="hidden">
+            <div class="spinner"></div>
+            <p>正在上傳影片並進行內容翻譯，請稍候...</p>
+            <p style="font-size: 0.9em; color: #6d4c41;">(處理大檔案可能需要較長時間)</p>
+        </div>
+
+        <div id="resultSection" class="hidden">
+            <h2>翻譯結果：</h2>
+            <textarea id="translationResult" readonly></textarea>
+        </div>
+
+        <div id="errorSection" class="hidden">
+            <h2>錯誤：</h2>
+            <p id="errorMessage"></p>
+        </div>
+    </div>
+
+    <script>
+        const geminiApiKeyInput = document.getElementById('geminiApiKey');
+        const videoFileInput = document.getElementById('videoFile');
+        const fileNameSpan = document.getElementById('fileName');
+        const translateBtn = document.getElementById('translateBtn');
+        const loadingDiv = document.getElementById('loading');
+        const resultSection = document.getElementById('resultSection');
+        const translationResultTextarea = document.getElementById('translationResult');
+        const errorSection = document.getElementById('errorSection');
+        const errorMessageP = document.getElementById('errorMessage');
+
+        // Gemini API 的端點
+        const GEMINI_API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent';
+
+        // 更新按鈕啟用狀態
+        function updateButtonState() {
+            translateBtn.disabled = !(geminiApiKeyInput.value.trim() && videoFileInput.files.length > 0);
+        }
+
+        geminiApiKeyInput.addEventListener('input', updateButtonState);
+
+        videoFileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                fileNameSpan.textContent = file.name;
+                // 注意：Gemini API 有檔案大小限制，對於 inline-data 而言，建議限制較小檔案
+                // 這裡是一個簡易的限制，您可以根據需求調整
+                if (file.size > 25 * 1024 * 1024) { // 25MB
+                    alert('影片檔案過大，請選擇小於 25MB 的影片。');
+                    videoFileInput.value = ''; // 清空選擇
+                    fileNameSpan.textContent = '檔案過大，請重新選擇';
+                }
+            } else {
+                fileNameSpan.textContent = '尚未選擇檔案';
+            }
+            resultSection.classList.add('hidden');
+            errorSection.classList.add('hidden');
+            updateButtonState();
+        });
+
+        translateBtn.addEventListener('click', async () => {
+            const apiKey = geminiApiKeyInput.value.trim();
+            const file = videoFileInput.files[0];
+
+            if (!apiKey) {
+                alert('請輸入您的 Gemini API 金鑰！');
+                return;
+            }
+            if (!file) {
+                alert('請先選擇一個影片檔案！');
+                return;
+            }
+
+            loadingDiv.classList.remove('hidden');
+            resultSection.classList.add('hidden');
+            errorSection.classList.add('hidden');
+            translateBtn.disabled = true;
+
+            try {
+                // 讀取檔案並轉換為 Base64 字串
+                const reader = new FileReader();
+                reader.readAsDataURL(file); // 這會返回 'data:video/mp4;base64,...' 格式的字串
+
+                reader.onloadend = async () => {
+                    const base64Data = reader.result; // 完整的 data URL 字串
+                    // Gemini API 需要的是去除 "data:mimeType;base64," 前綴的純 Base64 字串
+                    const base64Content = base64Data.split(',')[1]; 
+                    const mimeType = file.type;
+
+                    if (!base64Content || !mimeType.startsWith('video/')) {
+                        throw new Error('無法正確讀取或識別影片檔案類型。');
+                    }
+
+                    const requestBody = {
+                        contents: [
+                            {
+                                parts: [
+                                    { text: "請詳細描述這部影片的內容，並將前10秒內容翻譯成繁體中文。" },
+                                    {
+                                        inlineData: {
+                                            mimeType: mimeType,
+                                            data: base64Content,
+                                        },
+                                    },
+                                ],
+                            },
+                        ],
+                    };
+
+                    const response = await fetch(`${GEMINI_API_ENDPOINT}?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(requestBody),
+                    });
+
+                    // 檢查 HTTP 響應狀態碼
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        let errorMessage = `API 請求失敗: ${response.status} ${response.statusText}`;
+                        if (errorData && errorData.error && errorData.error.message) {
+                            errorMessage += ` - ${errorData.error.message}`;
+                        } else if (errorData && errorData.errors) {
+                            errorMessage += ` - ${JSON.stringify(errorData.errors)}`;
+                        }
+                        throw new Error(errorMessage);
+                    }
+
+                    const data = await response.json();
+
+                    if (data.candidates && data.candidates.length > 0) {
+                        const translation = data.candidates[0].content.parts[0].text;
+                        translationResultTextarea.value = translation;
+                        resultSection.classList.remove('hidden');
+                    } else {
+                        errorMessageP.textContent = 'Gemini API 沒有回傳翻譯結果。';
+                        errorSection.classList.remove('hidden');
+                    }
+                };
+
+                reader.onerror = (error) => {
+                    throw new Error(`讀取檔案時發生錯誤: ${error.target.error}`);
+                };
+
+            } catch (error) {
+                errorMessageP.textContent = `處理影片或 API 請求時發生錯誤: ${error.message}`;
+                errorSection.classList.remove('hidden');
+                console.error('錯誤:', error);
+            } finally {
+                loadingDiv.classList.add('hidden');
+                translateBtn.disabled = false;
+                updateButtonState();
+            }
+        });
+    </script>
+</body>
+</html>
